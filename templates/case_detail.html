@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ case['filename'] }} - Case Finder</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .file-meta {
+            background: #f8f9fa;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .file-meta-item {
+            display: flex;
+            margin-bottom: 0.5rem;
+        }
+        .file-meta-label {
+            font-weight: 500;
+            width: 100px;
+            color: #6c757d;
+        }
+        .file-content {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin: 1.5rem 0;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .summary-form .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .summary-form label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        .summary-form textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .summary-form textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 0.2rem rgba(74, 111, 165, 0.25);
+        }
+        .form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .last-saved {
+            margin-top: 1.5rem;
+            padding: 0.75rem;
+            background: #e8f4fd;
+            border-radius: var(--border-radius);
+            color: #0c5460;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .last-saved i {
+            font-size: 1.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <a href="{{ url_for('index') }}" class="logo">Case Finder</a>
+            <div class="search-form">
+                <a href="{{ url_for('index') }}" class="btn btn-outline">
+                    <i class="fas fa-arrow-left"></i> 一覧に戻る
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="container">
+            <!-- フラッシュメッセージ -->
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="flash-messages" style="margin-bottom: 1.5rem;">
+                        {% for message in messages %}
+                            <div class="flash-message {% if '失敗' in message or 'エラー' in message %}error{% else %}success{% endif %}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="card">
+                <div class="file-meta">
+                    <div class="file-meta-item">
+                        <div class="file-meta-label">ファイル名:</div>
+                        <div>
+                            {% if case['filename'].endswith('.pptx') %}
+                                <i class="far fa-file-powerpoint" style="color: #D24726; margin-right: 8px;"></i>
+                            {% elif case['filename'].endswith('.pdf') %}
+                                <i class="far fa-file-pdf" style="color: #E74C3C; margin-right: 8px;"></i>
+                            {% elif case['filename'].endswith(('.xlsx', '.xls')) %}
+                                <i class="far fa-file-excel" style="color: #1D6F42; margin-right: 8px;"></i>
+                            {% else %}
+                                <i class="far fa-file" style="color: #7F8C8D; margin-right: 8px;"></i>
+                            {% endif %}
+                            {{ case['filename'] }}
+                        </div>
+                    </div>
+                    <div class="file-meta-item">
+                        <div class="file-meta-label">ID:</div>
+                        <div>#{{ case['id'] }}</div>
+                    </div>
+                    {% if 'created_at' in case and case['created_at'] %}
+                    <div class="file-meta-item">
+                        <div class="file-meta-label">アップロード日:</div>
+                        <div>{{ case['created_at'] }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label for="customer_name" class="form-label">顧客名</label>
+                    <input type="text" class="form-control" id="customer_name" name="customer_name" 
+                           value="{{ case.customer_name if 'customer_name' in case else '' }}" placeholder="例: 株式会社サンプル">
+                </div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <label for="system_name" class="form-label">システム名</label>
+                    <input type="text" class="form-control" id="system_name" name="system_name" 
+                           value="{{ case.system_name if 'system_name' in case else '' }}" placeholder="例: 販売管理システム">
+                    <button type="button" id="save_metadata" class="btn btn-primary" style="margin-top: 10px;">
+                        <i class="fas fa-save"></i> 保存
+                    </button>
+                </div>
+
+                <h2 class="card-title">
+                    <i class="fas fa-file-alt"></i> 抽出テキスト
+                </h2>
+                <div class="file-content">
+                    {{ case['text_content'] }}
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard"></i> 事例要約
+                    </h2>
+                    <form action="{{ url_for('auto_summary', case_id=case['id']) }}" method="post" style="margin: 0;">
+                        <button type="submit" class="btn btn-outline">
+                            <i class="fas fa-robot"></i> AI で自動要約
+                        </button>
+                    </form>
+                </div>
+
+                <form action="{{ url_for('save_summary', case_id=case['id']) }}" method="post" class="summary-form">
+                    <div class="form-group">
+                        <label for="problem">
+                            <i class="fas fa-question-circle" style="color: #4a6fa5;"></i> 顧客の課題
+                        </label>
+                        <textarea 
+                            id="problem" 
+                            name="problem" 
+                            placeholder="顧客が抱えていた課題や問題点を記入してください"
+                            required>{{ summary['problem'] if summary else '' }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="solution">
+                            <i class="fas fa-lightbulb" style="color: #ffc107;"></i> 提供した解決策
+                        </label>
+                        <textarea 
+                            id="solution" 
+                            name="solution" 
+                            placeholder="提案・実施した解決策やアプローチを記入してください"
+                            required>{{ summary['solution'] if summary else '' }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="outcome">
+                            <i class="fas fa-chart-line" style="color: #28a745;"></i> 導入後の成果
+                        </label>
+                        <textarea 
+                            id="outcome" 
+                            name="outcome" 
+                            placeholder="解決策による成果や効果を定量的・定性的に記入してください"
+                            required>{{ summary['outcome'] if summary else '' }}</textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 保存する
+                        </button>
+                        
+                        {% if summary %}
+                            <a href="{{ url_for('download_pdf', case_id=case['id']) }}" class="btn btn-outline">
+                                <i class="fas fa-file-pdf"></i> PDF をダウンロード
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+
+                {% if summary %}
+                    <div class="last-saved">
+                        <i class="fas fa-info-circle"></i>
+                        <span>最終更新: {{ summary['created_at'] }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+
+    <footer style="background-color: #f8f9fa; padding: 2rem 0; margin-top: 3rem; color: #6c757d; font-size: 0.875rem;">
+        <div class="container" style="text-align: center;">
+            <p>© 2025 Case Finder - 事例ナレッジ検索システム</p>
+        </div>
+    </footer>
+    <script>
+        // メタデータ保存ボタンの処理
+        document.getElementById('save_metadata').addEventListener('click', function() {
+            const customerName = document.getElementById('customer_name').value;
+            const systemName = document.getElementById('system_name').value;
+            
+            fetch(`/case/{{ case['id'] }}/save_metadata`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `customer_name=${encodeURIComponent(customerName)}&system_name=${encodeURIComponent(systemName)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 成功メッセージを表示
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-success';
+                    alert.role = 'alert';
+                    alert.textContent = '保存しました';
+                    alert.style.marginTop = '10px';
+                    
+                    const button = document.getElementById('save_metadata');
+                    button.parentNode.insertBefore(alert, button.nextSibling);
+                    
+                    // 3秒後にメッセージを削除
+                    setTimeout(() => {
+                        alert.remove();
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('保存中にエラーが発生しました');
+            });
+        });
+    </script>
+</body>
+</html>
