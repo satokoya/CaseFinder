@@ -135,7 +135,7 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 @auth.login_required
-def upload_file():
+def upload():
     if 'file' not in request.files:
         flash('ファイルが選択されていません')
         return redirect(request.url)
